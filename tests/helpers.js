@@ -4,7 +4,7 @@ process.env.MONGODB_URI = process.env.MONGODB_URI_TEST || 'mongodb://127.0.0.1:2
 process.env.JWT_ACCESS_SECRET = 'test-secret-test-secret-test-secret-0123456789';
 process.env.BCRYPT_ROUNDS = '4';
 process.env.LOG_LEVEL = 'silent';
-process.env.RESEND_API_KEY = '';
+process.env.BREVO_API_KEY = '';
 
 const mongoose = (await import('mongoose')).default;
 const { connectDB, disconnectDB } = await import('../src/config/db.js');

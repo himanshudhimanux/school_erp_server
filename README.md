@@ -22,7 +22,7 @@ Fee payments, refunds, payroll payments and result publishing need multi-documen
 
 | Feature | Settings |
 |---|---|
-| Email (Resend) | `RESEND_API_KEY`, `MAIL_FROM` (a sender on a domain verified in Resend) |
+| Email (Brevo) | `BREVO_API_KEY`, `MAIL_FROM` (a sender address verified in Brevo; no domain needed) |
 | SMS and WhatsApp (Twilio) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`, `TWILIO_WHATSAPP_FROM`, `PUBLIC_API_URL` (delivery receipts) |
 | Push (Firebase Cloud Messaging) | `FCM_SERVICE_ACCOUNT` |
 | Online fee payments (Razorpay) | Each school sets its own keys in the app; `DATA_ENCRYPTION_KEY` encrypts them |
@@ -47,7 +47,7 @@ src/
   middleware/    authentication, tenant context, permissions, validation, errors
   modules/<x>/   models, validators, services and routes per module
   jobs/          scheduler (late fees, fee reminders, scheduled announcements, delivery retries)
-  services/      mail (Resend), Twilio, FCM
+  services/      mail (Brevo), Twilio, FCM
 tests/           node:test + supertest integration tests
 scripts/         seed, load-test data, load test, indexes, super admin
 deploy/          PM2 config, Nginx site, deploy/backup/restore scripts, DEPLOYMENT.md

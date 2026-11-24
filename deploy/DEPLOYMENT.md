@@ -81,7 +81,7 @@ Production values:
 | `CORS_ORIGINS` | `https://erp.yourschool.in` |
 | `TRUST_PROXY` | `1` (behind Nginx, so rate limits see the real visitor IP) |
 | `REQUIRE_TRANSACTIONS` | `true` |
-| `RESEND_API_KEY`, `MAIL_FROM` | Resend API key and a sender on a domain verified in Resend (needed for account set-up and password-reset emails) |
+| `BREVO_API_KEY`, `MAIL_FROM` | Brevo API key and a sender address verified in Brevo (Senders page; a plain mailbox works, no domain needed). Needed for account set-up and password-reset emails. |
 | `PUBLIC_API_URL` | `https://erp.yourschool.in` (Twilio delivery receipts) |
 | `TWILIO_*`, `FCM_SERVICE_ACCOUNT` | optional, see the README |
 
@@ -109,7 +109,7 @@ PM2 starts one API process per CPU core; only the first one runs scheduled jobs.
 npm run create-superadmin -- you@yourschool.in "Your Name" --print-link
 ```
 
-Open the printed link (valid for 72 hours) to set the password. Without `--print-link`, use "Forgot password" on the sign-in page, which needs Resend email.
+Open the printed link (valid for 72 hours) to set the password. Without `--print-link`, use "Forgot password" on the sign-in page, which needs Brevo email.
 
 Do **not** run `npm run seed` in production. It creates demo schools and accounts that share a known password.
 

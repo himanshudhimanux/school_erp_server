@@ -3,19 +3,24 @@ import { logger } from '../utils/logger.js';
 import { ProviderError } from './twilio.service.js';
 
 /**
- * Email delivery through Resend (https://resend.com) when RESEND_API_KEY is set.
- * Without it (local development / tests) messages are NOT sent: they are logged and kept in
+ * Email delivery through Brevo's transactional email API (https://www.brevo.com) when
+ * BREVO_API_KEY is set. The sender (MAIL_FROM) only has to be a sender address verified in Brevo
+ * (Senders page) — an ordinary mailbox such as a Gmail address works; no domain is required.
+ * Without a key (local development / tests) messages are NOT sent: they are logged and kept in
  * `devOutbox` so links can be used locally.
  * Errors are ProviderErrors with `code` and `permanent` (true = retrying will not help).
  */
 export const devOutbox = [];
 
-/**
- * Sends one email. `idempotencyKey` (optional) makes Resend drop a repeat of the same message,
- * e.g. when a queued notification is retried after a timeout that did in fact send it.
- * Resolves to { delivered, messageId }.
- */
-export async function sendMail({ to, subject, text, html, idempotencyKey }) {
+/** "School ERP <alerts@x.com>" → { name: 'School ERP', email: 'alerts@x.com' }; a bare address works too. */
+export function parseSender(from) {
+  const m = String(from).trim().match(/^\s*"?([^"<]*?)"?\s*<\s*([^>\s]+)\s*>\s*$/);
+  if (m) return m[1] ? { name: m[1], email: m[2] } : { email: m[2] };
+  return { email: String(from).trim() };
+}
+
+/** Sends one email. Resolves to { delivered, messageId }. */
+export async function sendMail({ to, subject, text, html }) {
   if (!env.emailConfigured) {
     devOutbox.push({ to, subject, text, at: new Date() });
     if (devOutbox.length > 50) devOutbox.shift();
@@ -23,26 +28,24 @@ export async function sendMail({ to, subject, text, html, idempotencyKey }) {
     return { delivered: false, messageId: null };
   }
 
-  const headers = { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' };
-  if (idempotencyKey) headers['Idempotency-Key'] = String(idempotencyKey).slice(0, 256);
   let res;
   try {
-    res = await fetch(`${env.RESEND_API_URL.replace(/\/$/, '')}/emails`, {
+    res = await fetch(`${env.BREVO_API_URL.replace(/\/$/, '')}/smtp/email`, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject, text, ...(html ? { html } : {}) }),
+      headers: { 'api-key': env.BREVO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ sender: parseSender(env.MAIL_FROM), to: [{ email: to }], subject, textContent: text, ...(html ? { htmlContent: html } : {}) }),
       signal: AbortSignal.timeout(15000),
     });
   } catch (err) {
-    throw new ProviderError(`Resend unreachable: ${err.message}`, { code: 'PROVIDER_UNREACHABLE' });
+    throw new ProviderError(`Brevo unreachable: ${err.message}`, { code: 'PROVIDER_UNREACHABLE' });
   }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     // 4xx (other than rate limiting) means the request itself was rejected: do not retry.
-    const code = json.name ? `RESEND_${String(json.name).toUpperCase()}` : `RESEND_HTTP_${res.status}`;
-    throw new ProviderError(json.message || `Resend error ${res.status}`, { code, permanent: res.status >= 400 && res.status < 500 && res.status !== 429 });
+    const code = json.code ? `BREVO_${String(json.code).toUpperCase()}` : `BREVO_HTTP_${res.status}`;
+    throw new ProviderError(json.message || `Brevo error ${res.status}`, { code, permanent: res.status >= 400 && res.status < 500 && res.status !== 429 });
   }
-  return { delivered: true, messageId: json.id };
+  return { delivered: true, messageId: json.messageId || null };
 }
 
 export function sendVerificationEmail(user, token) {

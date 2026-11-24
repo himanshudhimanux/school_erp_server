@@ -4,7 +4,7 @@
  *   npm run create-superadmin -- you@example.com "Your Name"
  *
  * A new account gets an unusable random password: the email owner sets a real one with
- * "Forgot password" on the sign-in page (needs Resend email), or you print a one-time set-up link with
+ * "Forgot password" on the sign-in page (needs Brevo email), or you print a one-time set-up link with
  * --print-link (the link is valid for 72 hours; share it only with that person).
  */
 import { randomBytes } from 'node:crypto';

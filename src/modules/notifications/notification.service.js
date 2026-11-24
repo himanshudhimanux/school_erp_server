@@ -27,7 +27,7 @@ export function providerStatus() {
 
 /**
  * SMS, WhatsApp and push can be chosen only when the server has a provider for them, so a school
- * never believes it is sending messages that cannot go out. (Email may be chosen before Resend is set
+ * never believes it is sending messages that cannot go out. (Email may be chosen before Brevo is set
  * up; those messages are recorded as EMAIL_NOT_CONFIGURED.)
  */
 export function assertChannelsAvailable(channels) {
@@ -150,7 +150,7 @@ async function deliverOne(n) {
     case 'email':
       if (!env.emailConfigured) throw new ProviderError('Email is not configured', { code: 'EMAIL_NOT_CONFIGURED', permanent: true });
       if (!n.recipient.email) throw new ProviderError('No email address', { code: 'NO_EMAIL', permanent: true });
-      return { providerMessageId: (await sendMail({ to: n.recipient.email, subject: n.title, text: n.body, idempotencyKey: `notification-${n._id}` })).messageId };
+      return { providerMessageId: (await sendMail({ to: n.recipient.email, subject: n.title, text: n.body })).messageId };
     case 'sms':
     case 'whatsapp':
       if (!n.recipient.phone) throw new ProviderError('No phone number', { code: 'INVALID_PHONE', permanent: true });

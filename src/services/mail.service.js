@@ -12,11 +12,16 @@ import { ProviderError } from './twilio.service.js';
  */
 export const devOutbox = [];
 
-/** "School ERP <alerts@x.com>" → { name: 'School ERP', email: 'alerts@x.com' }; a bare address works too. */
+/**
+ * "School ERP <alerts@x.com>" → { name: 'School ERP', email: 'alerts@x.com' }. A bare address works,
+ * and so does "School ERP alerts@x.com" (brackets left out). Returns { email: null } without an address.
+ */
 export function parseSender(from) {
-  const m = String(from).trim().match(/^\s*"?([^"<]*?)"?\s*<\s*([^>\s]+)\s*>\s*$/);
-  if (m) return m[1] ? { name: m[1], email: m[2] } : { email: m[2] };
-  return { email: String(from).trim() };
+  const s = String(from || '').trim();
+  const m = s.match(/^"?([^"<]*?)"?\s*<\s*([^>\s]+)\s*>$/) || s.match(/^"?(.*?)"?\s*([^\s<>"]+@[^\s<>"]+)$/);
+  if (!m || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m[2])) return { email: null };
+  const name = m[1].trim();
+  return name ? { name, email: m[2] } : { email: m[2] };
 }
 
 /** Sends one email. Resolves to { delivered, messageId }. */
@@ -28,12 +33,14 @@ export async function sendMail({ to, subject, text, html }) {
     return { delivered: false, messageId: null };
   }
 
+  const sender = parseSender(env.MAIL_FROM);
+  if (!sender.email) throw new ProviderError('MAIL_FROM has no valid sender address', { code: 'INVALID_SENDER', permanent: true });
   let res;
   try {
     res = await fetch(`${env.BREVO_API_URL.replace(/\/$/, '')}/smtp/email`, {
       method: 'POST',
       headers: { 'api-key': env.BREVO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ sender: parseSender(env.MAIL_FROM), to: [{ email: to }], subject, textContent: text, ...(html ? { htmlContent: html } : {}) }),
+      body: JSON.stringify({ sender, to: [{ email: to }], subject, textContent: text, ...(html ? { htmlContent: html } : {}) }),
       signal: AbortSignal.timeout(15000),
     });
   } catch (err) {

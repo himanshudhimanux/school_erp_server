@@ -39,8 +39,9 @@ describe('email through Brevo', () => {
     assert.deepEqual(parseSender('School ERP <a@gmail.com>'), { name: 'School ERP', email: 'a@gmail.com' });
     assert.deepEqual(parseSender('"Green Valley School" <office@gv.in>'), { name: 'Green Valley School', email: 'office@gv.in' });
     assert.deepEqual(parseSender('a@gmail.com'), { email: 'a@gmail.com' });
+    assert.deepEqual(parseSender('School ERP a@gmail.com'), { name: 'School ERP', email: 'a@gmail.com' }, 'brackets left out');
+    assert.deepEqual(parseSender('School ERP'), { email: null });
   });
-
   test('sends with the API key and a plain mailbox as sender, and returns the Brevo message id', async () => {
     const r = await sendMail({ to: 'parent@school.test', subject: 'Hello', text: 'Body text' });
     assert.deepEqual(r, { delivered: true, messageId: '<msg-1@smtp-relay.mailin.fr>' });

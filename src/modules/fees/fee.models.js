@@ -201,7 +201,8 @@ const paymentSchema = new mongoose.Schema(
 );
 paymentSchema.plugin(tenantPlugin);
 paymentSchema.index({ schoolId: 1, receiptNo: 1 }, { unique: true });
-paymentSchema.index({ schoolId: 1, paidAt: -1 });
+// Matches the list/dashboard sort (newest first, _id as tie-breaker) so "latest N" reads only N entries.
+paymentSchema.index({ schoolId: 1, paidAt: -1, _id: -1 });
 paymentSchema.index({ schoolId: 1, studentId: 1, paidAt: -1 });
 paymentSchema.index({ schoolId: 1, 'allocations.invoiceId': 1 });
 paymentSchema.index({ schoolId: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } });
@@ -258,7 +259,7 @@ const ledgerSchema = new mongoose.Schema(
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 ledgerSchema.plugin(tenantPlugin);
-ledgerSchema.index({ schoolId: 1, date: 1 });
+ledgerSchema.index({ schoolId: 1, date: 1, _id: 1 });
 ledgerSchema.index({ schoolId: 1, voucherId: 1 });
 ledgerSchema.index({ schoolId: 1, account: 1, date: 1 });
 ledgerSchema.pre(['updateOne', 'updateMany', 'findOneAndUpdate', 'deleteOne', 'deleteMany'], function appendOnly() {

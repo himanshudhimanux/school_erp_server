@@ -217,7 +217,7 @@ export async function markSection(tenant, sectionId, { date, entries = [], defau
   }
   if (missing.length) throw ApiError.badRequest('Give every student a status, or use defaultStatus', { code: 'ATTENDANCE_INCOMPLETE', details: { missing } });
 
-  const previous = await AttendanceRecord.find({ schoolId, studentId: { $in: roster }, date }).select('studentId status sheetId').lean();
+  const previous = await AttendanceRecord.find({ schoolId, studentId: { $in: roster }, date }).select('studentId status sheetId sectionId remark leaveRequestId').lean();
   const prevBy = new Map(previous.map((p) => [String(p.studentId), p]));
 
   const existed = await AttendanceSheet.exists({ schoolId, sectionId: section._id, date });
@@ -231,8 +231,15 @@ export async function markSection(tenant, sectionId, { date, entries = [], defau
     { upsert: true, returnDocument: 'after' },
   );
 
-  await AttendanceRecord.bulkWrite(
-    final.map((f) => ({
+  // Only write records that are new or differ: re-saving an unchanged register (common for
+  // teachers) then costs a few reads instead of rewriting the whole class.
+  const same = (a, b) => String(a ?? '') === String(b ?? '');
+  const toWrite = final.filter((f) => {
+    const p = prevBy.get(f.studentId);
+    return !p || p.status !== f.status || (f.remark !== undefined && !same(p.remark, f.remark)) || !same(p.leaveRequestId, f.leaveRequestId) || !same(p.sheetId, sheet._id) || !same(p.sectionId, section._id);
+  });
+  if (toWrite.length) await AttendanceRecord.bulkWrite(
+    toWrite.map((f) => ({
       updateOne: {
         filter: { schoolId, studentId: f.studentId, date },
         update: {
@@ -253,7 +260,7 @@ export async function markSection(tenant, sectionId, { date, entries = [], defau
     })),
   );
   // Records moved here from another section's sheet (same-day section change) update that sheet too.
-  await recomputeSheetCounts(schoolId, [sheet._id, ...previous.map((p) => p.sheetId)]);
+  if (toWrite.length || !existed) await recomputeSheetCounts(schoolId, [sheet._id, ...toWrite.map((f) => prevBy.get(f.studentId)?.sheetId).filter(Boolean)]);
 
   const changed = final.filter((f) => prevBy.get(f.studentId)?.status !== f.status);
   const noLongerAlertable = changed.filter((f) => ['absent', 'late'].includes(prevBy.get(f.studentId)?.status)).map((f) => f.studentId);

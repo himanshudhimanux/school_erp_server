@@ -52,6 +52,8 @@ studentSchema.plugin(tenantPlugin);
 studentSchema.plugin(softDeletePlugin);
 studentSchema.index({ schoolId: 1, admissionNo: 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
 studentSchema.index({ schoolId: 1, status: 1, firstName: 1, lastName: 1 });
+// Default student list: every non-deleted student sorted by name (count and page both use it).
+studentSchema.index({ schoolId: 1, isDeleted: 1, firstName: 1, lastName: 1, _id: 1 });
 studentSchema.index({ schoolId: 1, campusId: 1, status: 1 });
 studentSchema.index({ schoolId: 1, membershipId: 1 }, { unique: true, partialFilterExpression: { membershipId: { $type: 'objectId' } } });
 export const Student = mongoose.model('Student', studentSchema);

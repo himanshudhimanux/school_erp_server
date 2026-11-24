@@ -32,6 +32,10 @@ const schema = z.object({
   RAZORPAY_API_URL: z.string().url().default('https://api.razorpay.com/v1'),
   // Background jobs (fee reminders, late fees). Disabled automatically in tests.
   JOBS_ENABLED: bool,
+  // General API rate limit per client IP per minute (sign-in endpoints have their own stricter limit).
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(300),
+  // Sign-in, password reset and verification attempts per client IP per 15 minutes.
+  AUTH_RATE_LIMIT_PER_15_MIN: z.coerce.number().int().positive().default(30),
   // Public base URL of this API (e.g. https://api.example.com), used for provider delivery callbacks.
   PUBLIC_API_URL: z.string().url().optional(),
   // SMS and WhatsApp through Twilio. A channel is available only when its sender is set.
@@ -70,3 +74,34 @@ export const env = Object.freeze({
   whatsappConfigured: Boolean(raw.TWILIO_ACCOUNT_SID && raw.TWILIO_AUTH_TOKEN && raw.TWILIO_WHATSAPP_FROM),
   pushConfigured: Boolean(raw.FCM_SERVICE_ACCOUNT),
 });
+
+/**
+ * Production safety checks. Errors stop the server (an insecure or half-working setup is worse
+ * than none); warnings are printed at start-up. Pure function so it can be tested.
+ */
+export function productionIssues(e) {
+  const errors = [];
+  const warnings = [];
+  if (!e.isProd) return { errors, warnings };
+  const keyBytes = e.DATA_ENCRYPTION_KEY ? Buffer.from(e.DATA_ENCRYPTION_KEY, 'base64').length : 0;
+  if (keyBytes !== 32) errors.push('DATA_ENCRYPTION_KEY must be set to 32 random bytes (base64) — it encrypts stored payment gateway secrets');
+  if (/change[-_ ]?me|secret|password|example/i.test(e.JWT_ACCESS_SECRET) || new Set(e.JWT_ACCESS_SECRET).size < 12) errors.push('JWT_ACCESS_SECRET looks like a placeholder; use a long random value');
+  if (!e.cookieSecure) errors.push('COOKIE_SECURE must not be false in production (the refresh-token cookie would be sent over plain HTTP)');
+  if (e.corsOrigins.some((o) => /localhost|127\.0\.0\.1/.test(o))) warnings.push('CORS_ORIGINS includes a localhost address');
+  if (!e.APP_URL.startsWith('https://')) warnings.push('APP_URL is not https: links in emails will be insecure');
+  if (!e.TRUST_PROXY) warnings.push('TRUST_PROXY is 0: behind Nginx every visitor shares one IP, so rate limits apply to everyone together. Set TRUST_PROXY=1');
+  if (!e.requireTransactions) warnings.push('REQUIRE_TRANSACTIONS is not true: the server will start on a standalone MongoDB where fee payments are refused');
+  if (!e.smtpConfigured) warnings.push('SMTP is not configured: account set-up, password reset and email notifications will not be delivered');
+  if (e.PUBLIC_API_URL && !e.PUBLIC_API_URL.startsWith('https://')) warnings.push('PUBLIC_API_URL is not https');
+  return { errors, warnings };
+}
+
+{
+  const { errors, warnings } = productionIssues(env);
+  for (const w of warnings) console.warn(`[config warning] ${w}`);
+  if (errors.length) {
+    console.error('Unsafe production configuration:');
+    for (const m of errors) console.error(`  - ${m}`);
+    process.exit(1);
+  }
+}

@@ -10,7 +10,10 @@ async function main() {
   const app = createApp();
   // Deliver notifications queued before a restart.
   processDeliveryQueue().catch((err) => logger.error({ err }, 'Notification delivery failed'));
-  if (env.jobsEnabled) startScheduler();
+  // Under PM2 cluster mode every instance runs this file; only instance 0 runs scheduled jobs.
+  // (Each job is also safe to overlap: notifications are claimed and deduplicated.)
+  const primaryInstance = (process.env.NODE_APP_INSTANCE ?? '0') === '0';
+  if (env.jobsEnabled && primaryInstance) startScheduler();
   const server = app.listen(env.PORT, () => logger.info(`API listening on http://localhost:${env.PORT}/api/v1 (${env.NODE_ENV})`));
 
   const shutdown = (signal) => {

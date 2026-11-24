@@ -2,7 +2,7 @@
 
 Multi-tenant School ERP REST API: Node.js 20+, Express 5, MongoDB (Mongoose 9), JavaScript ES modules.
 
-The full API reference is in [docs/API.md](docs/API.md).
+The full API reference is in [docs/API.md](docs/API.md). Production deployment (Ubuntu, Nginx, PM2, backups) is in [deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md).
 
 ## Quick start
 
@@ -29,6 +29,16 @@ Fee payments, refunds, payroll payments and result publishing need multi-documen
 
 A channel that is not configured is never offered as available. Messages on it are recorded as failed, with the reason.
 
+## Useful scripts
+
+| Command | What it does |
+|---|---|
+| `npm run db:indexes` | Creates every index (run on each deploy; production does not auto-create indexes) |
+| `npm run create-superadmin -- you@example.com "Name" --print-link` | Creates or promotes the platform administrator |
+| `npm run seed -- --reset` | Demo data (development only) |
+| `npm run seed:load` | A 2,400-student school for load testing (refuses in production) |
+| `npm run load-test` | HTTP load test against a running API (see deploy/DEPLOYMENT.md, "Capacity") |
+
 ## Layout
 
 ```
@@ -39,5 +49,6 @@ src/
   jobs/          scheduler (late fees, fee reminders, scheduled announcements, delivery retries)
   services/      mail, Twilio, FCM
 tests/           node:test + supertest integration tests
-scripts/seed.js  demo data
+scripts/         seed, load-test data, load test, indexes, super admin
+deploy/          PM2 config, Nginx site, deploy/backup/restore scripts, DEPLOYMENT.md
 ```

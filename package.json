@@ -12,9 +12,14 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node scripts/seed.js",
-    "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\""
+    "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "db:indexes": "node scripts/sync-indexes.js",
+    "seed:load": "node scripts/seed-load.js",
+    "load-test": "node scripts/load-test.js",
+    "create-superadmin": "node scripts/create-superadmin.js"
   },
   "devDependencies": {
+    "autocannon": "^7.15.0",
     "pino-pretty": "^13.2.0",
     "supertest": "^7.3.2"
   },

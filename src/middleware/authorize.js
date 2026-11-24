@@ -20,29 +20,31 @@ function denial(tenant, missing) {
   return ApiError.forbidden(undefined, { code: 'PERMISSION_DENIED', details: { missing } });
 }
 
+/** Marks a middleware as an authorization check (tests/route-security.test.js looks for it). */
+const asCheck = (fn, label) => Object.assign(fn, { authCheck: label });
+
 /** Requires ALL listed permissions in the current tenant context. Run after requireTenant. */
-export const requirePermission =
-  (...permissions) =>
-  (req, _res, next) => {
+export const requirePermission = (...permissions) =>
+  asCheck((req, _res, next) => {
     const tenant = req.tenant;
     if (!tenant?.permissions) throw ApiError.forbidden();
     const missing = permissions.filter((p) => !tenant.permissions.has(p));
     if (missing.length) throw denial(tenant, missing);
     next();
-  };
+  }, `all:${permissions.join(",")}`);
 
 /** Requires ANY one of the listed permissions. */
-export const requireAnyPermission =
-  (...permissions) =>
-  (req, _res, next) => {
+export const requireAnyPermission = (...permissions) =>
+  asCheck((req, _res, next) => {
     const tenant = req.tenant;
     if (!tenant?.permissions) throw ApiError.forbidden();
     if (!permissions.some((p) => tenant.permissions.has(p))) throw denial(tenant, permissions);
     next();
-  };
+  }, `any:${permissions.join(",")}`);
 
 /** Platform (SaaS) super admin only. Explicit and separate from any school membership. */
 export function requirePlatformAdmin(req, _res, next) {
   if (!req.auth?.isPlatformAdmin) throw ApiError.forbidden('Platform administrator access required', { code: 'PLATFORM_ADMIN_REQUIRED' });
   next();
 }
+requirePlatformAdmin.authCheck = 'platform';

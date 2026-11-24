@@ -6,8 +6,7 @@ import { User } from '../users/user.model.js';
 import { Plan } from '../subscriptions/plan.model.js';
 import { Subscription } from '../subscriptions/subscription.model.js';
 import { assignPlan, summarize, getUsage } from '../subscriptions/subscription.service.js';
-import { createAuthToken } from '../auth/token.service.js';
-import { sendAccountSetupEmail } from '../../services/mail.service.js';
+import { welcomeToSchool } from '../memberships/welcome.service.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { AuditLog } from '../audit/auditLog.model.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -113,11 +112,7 @@ export async function onboardSchool(data, ctx) {
     throw err;
   }
 
-  let setupEmailDelivered = null;
-  if (result.ownerIsNew) {
-    const token = await createAuthToken(result.owner._id, 'account_setup');
-    ({ delivered: setupEmailDelivered } = await sendAccountSetupEmail(result.owner, result.school.name, token));
-  }
+  const email = await welcomeToSchool(result.owner, result.school.name, { isNew: result.ownerIsNew, role: OWNER });
 
   await recordAudit({
     ...ctx,
@@ -133,7 +128,7 @@ export async function onboardSchool(data, ctx) {
     campus: result.campus,
     owner: result.owner.toPublic(),
     ownerIsNew: result.ownerIsNew,
-    setupEmailDelivered,
+    ...email,
     subscription: summarize(result.subscription.toObject()),
   };
 }
@@ -238,13 +233,9 @@ export async function addSchoolOwner(schoolId, person, ctx) {
   } else {
     membership = await Membership.create({ schoolId: school._id, userId: user._id, roles: [OWNER], status: 'active', invitedBy: ctx.actorId });
   }
-  let setupEmailDelivered = null;
-  if (isNew) {
-    const token = await createAuthToken(user._id, 'account_setup');
-    ({ delivered: setupEmailDelivered } = await sendAccountSetupEmail(user, school.name, token));
-  }
+  const email = await welcomeToSchool(user, school.name, { isNew, role: OWNER });
   await recordAudit({ ...ctx, schoolId: school._id, action: 'platform.owner_added', entityType: 'Membership', entityId: membership._id, metadata: { userId: user._id, email: user.email, newUser: isNew } });
-  return { membershipId: membership._id, owner: user.toPublic(), ownerIsNew: isNew, setupEmailDelivered };
+  return { membershipId: membership._id, owner: user.toPublic(), ownerIsNew: isNew, ...email };
 }
 
 /* ------------------------------ audit ------------------------------ */

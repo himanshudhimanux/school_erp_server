@@ -159,7 +159,7 @@ export async function createStaff(tenant, data, ctx) {
     throw err;
   }
   await recordAudit({ ...ctx, action: 'staff.profile_created', entityType: 'Membership', entityId: membershipId, metadata: { department: profile.department, designation: profile.designation } });
-  return { staff: await getStaff(tenant, membershipId), isNewUser: result.isNewUser, setupEmailDelivered: result.setupEmailDelivered };
+  return { staff: await getStaff(tenant, membershipId), isNewUser: result.isNewUser, emailDelivered: result.emailDelivered, emailError: result.emailError, setupEmailDelivered: result.setupEmailDelivered };
 }
 
 /** Creates or updates the employee record of an existing staff member. */

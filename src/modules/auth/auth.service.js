@@ -14,7 +14,7 @@ import {
 } from './token.service.js';
 import { listUserSchools, resolveMembership, tenantSummary } from '../memberships/membership.service.js';
 import { recordAudit } from '../audit/audit.service.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../../services/mail.service.js';
+import { sendPasswordResetEmail, sendVerificationEmail, sendSafely } from '../../services/mail.service.js';
 import { logger } from '../../utils/logger.js';
 
 let dummyHashPromise;
@@ -208,8 +208,9 @@ export async function forgotPassword(email, meta) {
   // Always respond identically to avoid account enumeration.
   if (!user) return;
   const token = await createAuthToken(user._id, 'password_reset');
-  await sendPasswordResetEmail(user, token);
-  await recordAudit({ action: 'auth.password_reset_requested', entityType: 'User', entityId: user._id, actorId: user._id, ...meta });
+  // A delivery failure must not change the response (that would reveal the account exists); it is logged.
+  const { delivered, error } = await sendSafely(() => sendPasswordResetEmail(user, token));
+  await recordAudit({ action: 'auth.password_reset_requested', entityType: 'User', entityId: user._id, actorId: user._id, ...meta, metadata: { emailDelivered: delivered, emailError: error } });
 }
 
 export async function resetPassword({ token, password }, meta) {
@@ -242,8 +243,8 @@ export async function changePassword(auth, { currentPassword, newPassword }, met
 export async function sendVerification(user) {
   if (user.emailVerifiedAt) throw ApiError.badRequest('Email is already verified', { code: 'ALREADY_VERIFIED' });
   const token = await createAuthToken(user._id, 'email_verification');
-  const result = await sendVerificationEmail(user, token);
-  return { delivered: result.delivered };
+  const { delivered, error } = await sendSafely(() => sendVerificationEmail(user, token));
+  return { delivered, emailError: error };
 }
 
 export async function verifyEmail(token, meta) {

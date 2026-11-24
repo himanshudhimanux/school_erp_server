@@ -13,8 +13,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { randomToken } from '../../utils/crypto.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { assertDeletable, runDeleteHooks } from '../../utils/dependencyGuards.js';
-import { createAuthToken } from '../auth/token.service.js';
-import { sendAccountSetupEmail } from '../../services/mail.service.js';
+import { welcomeToSchool } from './welcome.service.js';
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const OWNER = SCHOOL_ROLES.SCHOOL_OWNER;
@@ -227,11 +226,7 @@ export async function addMember(tenant, data, ctx) {
     throw err;
   }
 
-  let setupEmailDelivered = null;
-  if (isNewUser) {
-    const token = await createAuthToken(user._id, 'account_setup');
-    ({ delivered: setupEmailDelivered } = await sendAccountSetupEmail(user, tenant.school.name, token));
-  }
+  const email = await welcomeToSchool(user, tenant.school.name, { isNew: isNewUser, role: roles.includes(OWNER) ? OWNER : 'staff' });
 
   await recordAudit({
     ...ctx,
@@ -241,7 +236,7 @@ export async function addMember(tenant, data, ctx) {
     metadata: { userId: user._id, email: user.email, roles, customRoleIds: membership.customRoleIds, campusIds, newUser: isNewUser },
   });
 
-  return { member: await getMember(tenant.schoolId, membership._id), isNewUser, setupEmailDelivered };
+  return { member: await getMember(tenant.schoolId, membership._id), isNewUser, ...email };
 }
 
 async function loadTargetForChange(tenant, memberId, ctx) {
@@ -341,7 +336,8 @@ export async function assertAssignableStaff(schoolId, membershipId, { campusId }
  * Gives a parent or student portal access. Finds or creates the user by email and adds the
  * family role to their membership (a teacher who is also a parent keeps one membership with
  * both roles). New users receive an account-setup email. Family roles never occupy staff seats.
- * Returns { membership, user, isNewUser, setupEmailDelivered }.
+ * Existing users are emailed that they now have access.
+ * Returns { membership, user, isNewUser, emailDelivered, emailError, setupEmailDelivered }.
  */
 export async function grantFamilyRole(tenant, { name, email, phone }, role, ctx) {
   if (!FAMILY_ROLE_VALUES.includes(role)) throw new Error(`Not a family role: ${role}`);
@@ -357,28 +353,28 @@ export async function grantFamilyRole(tenant, { name, email, phone }, role, ctx)
   }
 
   let membership;
+  let roleAdded = false;
   try {
     membership = await Membership.findOne({ schoolId: tenant.schoolId, userId: user._id });
     if (membership) {
       if (!membership.roles.includes(role)) {
+        roleAdded = true;
         membership.roles.push(role);
         await membership.save();
       }
     } else {
       membership = await Membership.create({ schoolId: tenant.schoolId, userId: user._id, roles: [role], status: 'active', invitedBy: ctx.actorId });
+      roleAdded = true;
     }
   } catch (err) {
     if (isNewUser) await User.deleteOne({ _id: user._id });
     throw err;
   }
 
-  let setupEmailDelivered = null;
-  if (isNewUser) {
-    const token = await createAuthToken(user._id, 'account_setup');
-    ({ delivered: setupEmailDelivered } = await sendAccountSetupEmail(user, tenant.school.name, token));
-  }
+  // Only when the role is new to them (re-enabling an existing login sends nothing).
+  const welcome = isNewUser || roleAdded ? await welcomeToSchool(user, tenant.school.name, { isNew: isNewUser, role }) : { emailDelivered: null, emailError: null, setupEmailDelivered: null };
   await recordAudit({ ...ctx, action: 'member.family_role_granted', entityType: 'Membership', entityId: membership._id, metadata: { userId: user._id, email: user.email, role, newUser: isNewUser } });
-  return { membership, user, isNewUser, setupEmailDelivered };
+  return { membership, user, isNewUser, ...welcome };
 }
 
 /** Removes a family role; the membership is deleted when no other role remains. */

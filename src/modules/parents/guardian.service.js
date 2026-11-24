@@ -321,7 +321,7 @@ export async function grantGuardianPortal(tenant, guardianId, { email } = {}, ct
   g.membershipId = result.membership._id;
   if (!g.email) g.email = loginEmail;
   await g.save();
-  return { parent: await getGuardian(tenant, g._id), isNewUser: result.isNewUser, setupEmailDelivered: result.setupEmailDelivered };
+  return { parent: await getGuardian(tenant, g._id), isNewUser: result.isNewUser, emailDelivered: result.emailDelivered, emailError: result.emailError, setupEmailDelivered: result.setupEmailDelivered };
 }
 
 export async function revokeGuardianPortal(tenant, guardianId, ctx) {

@@ -299,7 +299,7 @@ export async function grantStudentPortal(tenant, studentId, { email } = {}, ctx)
   student.membershipId = result.membership._id;
   if (!student.email) student.email = loginEmail;
   await student.save();
-  return { student: await getStudent(tenant, student._id), isNewUser: result.isNewUser, setupEmailDelivered: result.setupEmailDelivered };
+  return { student: await getStudent(tenant, student._id), isNewUser: result.isNewUser, emailDelivered: result.emailDelivered, emailError: result.emailError, setupEmailDelivered: result.setupEmailDelivered };
 }
 
 export async function revokeStudentPortal(tenant, studentId, ctx) {

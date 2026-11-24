@@ -145,6 +145,13 @@ describe('school onboarding and lifecycle', () => {
     assert.equal(r.body.data.ownerIsNew, false);
     assert.equal(r.body.data.owner.name, 'Asha Owner', 'existing user is not renamed');
     assert.equal(r.body.data.subscription.status, 'active');
+    // Existing accounts are told they have access (no set-password link); here email is not configured.
+    assert.deepEqual([r.body.data.emailDelivered, r.body.data.emailError, r.body.data.setupEmailDelivered], [false, 'EMAIL_NOT_CONFIGURED', null]);
+    assert.match(r.body.message, /Email delivery is not configured/);
+    const mail = devOutbox.filter((m) => m.to === 'asha@sunrise.test').at(-1);
+    assert.equal(mail.subject, 'You now have access to Sunrise Junior');
+    assert.match(mail.text, /as an owner/);
+    assert.doesNotMatch(mail.text, /token=/);
     const data = await login('asha@sunrise.test', 'Sunrise123');
     assert.equal(data.schools.length, 2);
   });

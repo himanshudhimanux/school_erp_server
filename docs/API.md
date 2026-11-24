@@ -177,7 +177,7 @@ Campus restriction: a membership with an empty `campusIds` list can access every
 | Method | Path | Permission | Notes |
 |---|---|---|---|
 | GET | `/members` | `users.read` | Query `page, limit, role, customRoleId, campusId, status, search` |
-| POST | `/members` | `users.create` | `{ name, email, phone?, roles[] (staff roles), customRoleIds[], campusIds[] }`. Existing users (matched by email) get a membership and are not renamed. New users get an account-setup email (72 h link to `/reset-password?token=…&setup=1`), with `data.setupEmailDelivered` saying whether it was actually sent. Subject to `maxUsers`. |
+| POST | `/members` | `users.create` | `{ name, email, phone?, roles[] (staff roles), customRoleIds[], campusIds[] }`. Existing users (matched by email) get a membership, are not renamed, and are emailed that they now have access (they sign in with their existing password). New users get an account-setup email (72 h link to `/reset-password?token=…&setup=1`). `data.emailDelivered` says whether the email was sent and `data.emailError` why not (`EMAIL_NOT_CONFIGURED` or the provider's error); a failed email never fails the request. `data.setupEmailDelivered` is the same for new users and `null` for existing ones. School onboarding and family logins behave the same way. Subject to `maxUsers`. |
 | GET | `/members/:memberId` | `users.read` | |
 | PATCH | `/members/:memberId` | `users.update` | `{ roles?, customRoleIds?, campusIds?, status? (active\|suspended) }` |
 | DELETE | `/members/:memberId` | `users.delete` | Removes the membership (the user account remains) |

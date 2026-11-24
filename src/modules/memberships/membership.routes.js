@@ -9,6 +9,7 @@ import { objectId, email } from '../auth/auth.validators.js';
 import { auditContext } from '../audit/audit.service.js';
 import { MEMBERSHIP_STATUSES } from './membership.model.js';
 import * as svc from './membership.service.js';
+import { welcomeMessage } from './welcome.service.js';
 
 const router = Router();
 
@@ -54,13 +55,7 @@ router.get('/', requirePermission('users.read'), validate({ query: listQuery }),
 
 router.post('/', requirePermission('users.create'), validate({ body: addSchema }), async (req, res) => {
   const result = await svc.addMember(req.tenant, req.body, auditContext(req));
-  let message = 'Member added';
-  if (result.isNewUser) {
-    message = result.setupEmailDelivered
-      ? 'Member added. An account setup email has been sent.'
-      : 'Member added. Email delivery is not configured, so the account setup email was not sent.';
-  }
-  return created(res, result, message);
+  return created(res, result, `Member added. ${welcomeMessage({ isNew: result.isNewUser, ...result })}`);
 });
 
 router.get('/:memberId', requirePermission('users.read'), validate({ params }), async (req, res) => {

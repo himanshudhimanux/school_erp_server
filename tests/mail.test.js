@@ -57,6 +57,20 @@ describe('email through Resend', () => {
     await assert.rejects(sendMail({ to: 'busy@outage.test', subject: 'x', text: 'y' }), (err) => err.code === 'RESEND_INTERNAL_SERVER_ERROR' && err.permanent === false);
   });
 
+  test('welcome emails: existing accounts get an access email; a refused email is reported, not thrown', async () => {
+    const { welcomeToSchool, welcomeMessage } = await import('../src/modules/memberships/welcome.service.js');
+    const ok = await welcomeToSchool({ name: 'Ravi', email: 'ravi@school.test' }, 'Green Valley', { isNew: false, role: 'teacher' });
+    assert.deepEqual(ok, { emailDelivered: true, emailError: null, setupEmailDelivered: null });
+    assert.equal(received.at(-1).msg.subject, 'You now have access to Green Valley');
+    assert.match(received.at(-1).msg.text, /as a staff member/);
+    assert.match(welcomeMessage({ isNew: false, ...ok }), /emailed that they now have access/);
+
+    const refused = await welcomeToSchool({ name: 'Bad', email: 'invalid@bounce.test' }, 'Green Valley', { isNew: false, role: 'school_owner' });
+    assert.equal(refused.emailDelivered, false);
+    assert.match(refused.emailError, /^RESEND_VALIDATION_ERROR: /);
+    assert.match(welcomeMessage({ isNew: false, ...refused }), /could not be sent \(RESEND_VALIDATION_ERROR/);
+  });
+
   test('an unreachable provider is a temporary error', async () => {
     const { env } = await import('../src/config/env.js');
     const realFetch = globalThis.fetch;

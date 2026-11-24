@@ -63,6 +63,29 @@ export function sendAccountSetupEmail(user, schoolName, token) {
   });
 }
 
+/** For people who already have an account: they sign in with their existing password. */
+export function sendAddedToSchoolEmail(user, schoolName, roleLabel) {
+  return sendMail({
+    to: user.email,
+    subject: `You now have access to ${schoolName}`,
+    text: `Hello ${user.name},\n\nYou have been added to ${schoolName} as ${roleLabel}. Sign in with your existing account:\n${env.APP_URL}/login\n\nIf you belong to more than one school, choose ${schoolName} after signing in. Forgot your password? Use "Forgot password" on the sign-in page.`,
+  });
+}
+
+/**
+ * Runs an email send without letting a delivery failure undo or fail the action that caused it
+ * (the school, member or login was already saved). Resolves to { delivered, error }.
+ */
+export async function sendSafely(send) {
+  try {
+    const { delivered } = await send();
+    return { delivered, error: delivered ? null : 'EMAIL_NOT_CONFIGURED' };
+  } catch (err) {
+    logger.warn({ err: { code: err.code, message: err.message } }, 'Email could not be sent');
+    return { delivered: false, error: err.code === 'PROVIDER_UNREACHABLE' ? err.code : `${err.code || 'EMAIL_FAILED'}: ${err.message}`.slice(0, 300) };
+  }
+}
+
 export function sendPasswordResetEmail(user, token) {
   const link = `${env.APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
   return sendMail({

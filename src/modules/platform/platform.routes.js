@@ -8,6 +8,7 @@ import { auditContext } from '../audit/audit.service.js';
 import * as v from './platform.validators.js';
 import * as svc from './platform.service.js';
 import { platformAnalytics } from './analytics.service.js';
+import { welcomeMessage } from '../memberships/welcome.service.js';
 
 /**
  * SaaS platform administration. Requires User.platformRole = super_admin.
@@ -47,9 +48,7 @@ router.get('/schools', validate({ query: v.listSchoolsQuery }), async (req, res)
 });
 router.post('/schools', validate({ body: v.onboardSchoolSchema }), async (req, res) => {
   const result = await svc.onboardSchool(req.body, ctx(req));
-  let message = 'School onboarded';
-  if (result.ownerIsNew) message += result.setupEmailDelivered ? '. Owner account setup email sent.' : '. Email delivery is not configured, so the owner setup email was not sent.';
-  return created(res, result, message);
+  return created(res, result, `School onboarded. ${welcomeMessage({ isNew: result.ownerIsNew, ...result })}`);
 });
 router.get('/schools/:schoolId', validate({ params: v.schoolIdParams }), async (req, res) => ok(res, await svc.getSchoolDetail(req.params.schoolId)));
 router.patch('/schools/:schoolId', validate({ params: v.schoolIdParams, body: v.updateSchoolSchema }), async (req, res) =>

@@ -22,12 +22,12 @@ export const CHANNEL_LABELS = Object.freeze({ in_app: 'App inbox', email: 'Email
 
 /** Whether the platform has a provider for each channel (independent of any school's choice). */
 export function providerStatus() {
-  return { in_app: true, email: env.smtpConfigured, sms: env.smsConfigured, whatsapp: env.whatsappConfigured, push: env.pushConfigured };
+  return { in_app: true, email: env.emailConfigured, sms: env.smsConfigured, whatsapp: env.whatsappConfigured, push: env.pushConfigured };
 }
 
 /**
  * SMS, WhatsApp and push can be chosen only when the server has a provider for them, so a school
- * never believes it is sending messages that cannot go out. (Email may be chosen before SMTP is set
+ * never believes it is sending messages that cannot go out. (Email may be chosen before Resend is set
  * up; those messages are recorded as EMAIL_NOT_CONFIGURED.)
  */
 export function assertChannelsAvailable(channels) {
@@ -148,10 +148,9 @@ async function deliverPush(n) {
 async function deliverOne(n) {
   switch (n.channel) {
     case 'email':
-      if (!env.smtpConfigured) throw new ProviderError('Email is not configured', { code: 'EMAIL_NOT_CONFIGURED', permanent: true });
+      if (!env.emailConfigured) throw new ProviderError('Email is not configured', { code: 'EMAIL_NOT_CONFIGURED', permanent: true });
       if (!n.recipient.email) throw new ProviderError('No email address', { code: 'NO_EMAIL', permanent: true });
-      await sendMail({ to: n.recipient.email, subject: n.title, text: n.body });
-      return {};
+      return { providerMessageId: (await sendMail({ to: n.recipient.email, subject: n.title, text: n.body, idempotencyKey: `notification-${n._id}` })).messageId };
     case 'sms':
     case 'whatsapp':
       if (!n.recipient.phone) throw new ProviderError('No phone number', { code: 'INVALID_PHONE', permanent: true });

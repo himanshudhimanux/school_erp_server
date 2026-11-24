@@ -80,7 +80,7 @@ describe('route security', () => {
 
 describe('production configuration checks', async () => {
   const { productionIssues } = await import('../src/config/env.js');
-  const base = { isProd: true, JWT_ACCESS_SECRET: 'q8Zr2vLp0XwN5sTbYc7KmH1dGf4jA9uE', DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'), cookieSecure: true, corsOrigins: ['https://erp.example.com'], APP_URL: 'https://erp.example.com', TRUST_PROXY: 1, requireTransactions: true, smtpConfigured: true };
+  const base = { isProd: true, JWT_ACCESS_SECRET: 'q8Zr2vLp0XwN5sTbYc7KmH1dGf4jA9uE', DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'), cookieSecure: true, corsOrigins: ['https://erp.example.com'], APP_URL: 'https://erp.example.com', TRUST_PROXY: 1, requireTransactions: true, emailConfigured: true, MAIL_FROM: "School ERP <no-reply@erp.school.in>" };
 
   test('a correct production setup passes', () => {
     assert.deepEqual(productionIssues(base), { errors: [], warnings: [] });

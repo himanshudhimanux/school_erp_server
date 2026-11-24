@@ -1,31 +1,48 @@
-import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { ProviderError } from './twilio.service.js';
 
 /**
- * Email delivery through SMTP when configured.
- * Without SMTP_HOST (local development / tests) messages are NOT sent: they are rendered with
- * nodemailer's JSON transport, logged, and kept in `devOutbox` so links can be used locally.
+ * Email delivery through Resend (https://resend.com) when RESEND_API_KEY is set.
+ * Without it (local development / tests) messages are NOT sent: they are logged and kept in
+ * `devOutbox` so links can be used locally.
+ * Errors are ProviderErrors with `code` and `permanent` (true = retrying will not help).
  */
-const transporter = env.smtpConfigured
-  ? nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT || 587,
-      secure: (env.SMTP_PORT || 587) === 465,
-      auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
-    })
-  : nodemailer.createTransport({ jsonTransport: true });
-
 export const devOutbox = [];
 
-export async function sendMail({ to, subject, text, html }) {
-  const info = await transporter.sendMail({ from: env.MAIL_FROM, to, subject, text, html });
-  if (!env.smtpConfigured) {
+/**
+ * Sends one email. `idempotencyKey` (optional) makes Resend drop a repeat of the same message,
+ * e.g. when a queued notification is retried after a timeout that did in fact send it.
+ * Resolves to { delivered, messageId }.
+ */
+export async function sendMail({ to, subject, text, html, idempotencyKey }) {
+  if (!env.emailConfigured) {
     devOutbox.push({ to, subject, text, at: new Date() });
     if (devOutbox.length > 50) devOutbox.shift();
-    if (!env.isTest) logger.info({ to, subject, text }, 'SMTP not configured: email not delivered (dev outbox)');
+    if (!env.isTest) logger.info({ to, subject, text }, 'Email provider not configured: email not delivered (dev outbox)');
+    return { delivered: false, messageId: null };
   }
-  return { delivered: env.smtpConfigured, messageId: info.messageId };
+
+  const headers = { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' };
+  if (idempotencyKey) headers['Idempotency-Key'] = String(idempotencyKey).slice(0, 256);
+  let res;
+  try {
+    res = await fetch(`${env.RESEND_API_URL.replace(/\/$/, '')}/emails`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject, text, ...(html ? { html } : {}) }),
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    throw new ProviderError(`Resend unreachable: ${err.message}`, { code: 'PROVIDER_UNREACHABLE' });
+  }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // 4xx (other than rate limiting) means the request itself was rejected: do not retry.
+    const code = json.name ? `RESEND_${String(json.name).toUpperCase()}` : `RESEND_HTTP_${res.status}`;
+    throw new ProviderError(json.message || `Resend error ${res.status}`, { code, permanent: res.status >= 400 && res.status < 500 && res.status !== 429 });
+  }
+  return { delivered: true, messageId: json.id };
 }
 
 export function sendVerificationEmail(user, token) {

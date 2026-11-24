@@ -96,7 +96,7 @@ Body: `{ email }`. Always returns the same response. Sends a reset link to `${AP
 Body: `{ token, password }`. The token is single-use. Revokes all sessions, unlocks the account and marks the email verified.
 
 ### `POST /auth/resend-verification` 🔒
-Sends a verification link to `${APP_URL}/verify-email?token=…`, valid for 24 hours. `data.delivered` is `false` when SMTP is not configured (the email is logged, not sent).
+Sends a verification link to `${APP_URL}/verify-email?token=…`, valid for 24 hours. `data.delivered` is `false` when email (Resend) is not configured (the email is logged, not sent).
 
 ### `POST /auth/verify-email` (public)
 Body: `{ token }`.
@@ -411,7 +411,7 @@ Permissions:
 - Changing a student from absent to something else cancels alerts that haven't gone out yet. An alert that was already sent stays sent.
 - Backfilled (past) dates never alert.
 - Students with no reachable guardian get a `failed` entry with `NO_GUARDIAN` or `NO_CONTACT_CHANNEL`, so the school can see who wasn't informed.
-- Emails fail with `EMAIL_NOT_CONFIGURED` until SMTP is set. Alerts also go by SMS, WhatsApp and push on the school's alert channels once those are configured (see Communication).
+- Emails fail with `EMAIL_NOT_CONFIGURED` until Resend is set up. Alerts also go by SMS, WhatsApp and push on the school's alert channels once those are configured (see Communication).
 
 | Method | Path | Notes |
 |---|---|---|
@@ -539,7 +539,7 @@ Each school connects **its own** Razorpay account, so fees go straight to the sc
 - Each invoice + rule + guardian + channel is sent at most once.
 - The scheduler checks hourly and sends from `sendHour` in the school's timezone.
 - Students with no reachable guardian are recorded as `failed` (`NO_GUARDIAN` / `NO_CONTACT_CHANNEL`).
-- Email shows as `failed: EMAIL_NOT_CONFIGURED` until SMTP is set up. SMS, WhatsApp and push can be chosen once configured on the server. Wording comes from the school's message templates.
+- Email shows as `failed: EMAIL_NOT_CONFIGURED` until Resend is set up. SMS, WhatsApp and push can be chosen once configured on the server. Wording comes from the school's message templates.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -714,7 +714,7 @@ Every notification is one recipient on one channel, with a real delivery status.
 | Channel | Provider | Available when | Statuses |
 |---|---|---|---|
 | `in_app` | App inbox (`/portal/notifications`) | Always | `sent` on creation; `readAt` when opened |
-| `email` | SMTP | `SMTP_HOST` set | `queued` → `sent` \| `failed` (`EMAIL_NOT_CONFIGURED` without SMTP) |
+| `email` | Resend | `RESEND_API_KEY` set | `queued` → `sent` \| `failed` (`EMAIL_NOT_CONFIGURED` without Resend) |
 | `sms`, `whatsapp` | Twilio Messages API | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_SMS_FROM` / `TWILIO_WHATSAPP_FROM` | `queued` → `sent` → `delivered` (only after Twilio's receipt; needs `PUBLIC_API_URL`) \| `failed` |
 | `push` | Firebase Cloud Messaging HTTP v1 | `FCM_SERVICE_ACCOUNT` (service-account JSON path or base64) | `queued` → `sent` \| `failed`. Created only for users with a registered device. |
 | `none` | — | — | `failed` with `NO_GUARDIAN` / `NO_CONTACT_CHANNEL`: the person could not be reached |

@@ -81,7 +81,7 @@ Production values:
 | `CORS_ORIGINS` | `https://erp.yourschool.in` |
 | `TRUST_PROXY` | `1` (behind Nginx, so rate limits see the real visitor IP) |
 | `REQUIRE_TRANSACTIONS` | `true` |
-| `SMTP_*`, `MAIL_FROM` | your mail provider (needed for account set-up and password-reset emails) |
+| `RESEND_API_KEY`, `MAIL_FROM` | Resend API key and a sender on a domain verified in Resend (needed for account set-up and password-reset emails) |
 | `PUBLIC_API_URL` | `https://erp.yourschool.in` (Twilio delivery receipts) |
 | `TWILIO_*`, `FCM_SERVICE_ACCOUNT` | optional, see the README |
 
@@ -90,7 +90,7 @@ The server **refuses to start** if the production setup is unsafe. Examples:
 - a placeholder JWT secret;
 - insecure cookies.
 
-It prints a warning for other gaps, such as no SMTP or `TRUST_PROXY=0`.
+It prints a warning for other gaps, such as no email provider or `TRUST_PROXY=0`.
 
 ## 6. First start
 
@@ -109,7 +109,7 @@ PM2 starts one API process per CPU core; only the first one runs scheduled jobs.
 npm run create-superadmin -- you@yourschool.in "Your Name" --print-link
 ```
 
-Open the printed link (valid for 72 hours) to set the password. Without `--print-link`, use "Forgot password" on the sign-in page, which needs SMTP.
+Open the printed link (valid for 72 hours) to set the password. Without `--print-link`, use "Forgot password" on the sign-in page, which needs Resend email.
 
 Do **not** run `npm run seed` in production. It creates demo schools and accounts that share a known password.
 

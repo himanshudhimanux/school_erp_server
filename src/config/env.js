@@ -17,10 +17,9 @@ const schema = z.object({
   APP_URL: z.string().url().default('http://localhost:5173'),
   COOKIE_SECURE: bool,
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().positive().optional(),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
+  // Email through Resend. MAIL_FROM must use a domain verified in your Resend account.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_API_URL: z.string().url().default('https://api.resend.com'),
   MAIL_FROM: z.string().default('School ERP <no-reply@localhost>'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
@@ -66,7 +65,7 @@ export const env = Object.freeze({
   isTest: raw.NODE_ENV === 'test',
   corsOrigins: raw.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
   cookieSecure: raw.COOKIE_SECURE ?? raw.NODE_ENV === 'production',
-  smtpConfigured: Boolean(raw.SMTP_HOST),
+  emailConfigured: Boolean(raw.RESEND_API_KEY),
   requireTransactions: raw.REQUIRE_TRANSACTIONS ?? false,
   jobsEnabled: raw.JOBS_ENABLED ?? raw.NODE_ENV !== 'test',
   twilioConfigured: Boolean(raw.TWILIO_ACCOUNT_SID && raw.TWILIO_AUTH_TOKEN),
@@ -91,7 +90,8 @@ export function productionIssues(e) {
   if (!e.APP_URL.startsWith('https://')) warnings.push('APP_URL is not https: links in emails will be insecure');
   if (!e.TRUST_PROXY) warnings.push('TRUST_PROXY is 0: behind Nginx every visitor shares one IP, so rate limits apply to everyone together. Set TRUST_PROXY=1');
   if (!e.requireTransactions) warnings.push('REQUIRE_TRANSACTIONS is not true: the server will start on a standalone MongoDB where fee payments are refused');
-  if (!e.smtpConfigured) warnings.push('SMTP is not configured: account set-up, password reset and email notifications will not be delivered');
+  if (!e.emailConfigured) warnings.push('RESEND_API_KEY is not set: account set-up, password reset and email notifications will not be delivered');
+  if (e.emailConfigured && /localhost|example\.com/i.test(e.MAIL_FROM)) warnings.push('MAIL_FROM still uses a placeholder address; Resend only sends from a verified domain');
   if (e.PUBLIC_API_URL && !e.PUBLIC_API_URL.startsWith('https://')) warnings.push('PUBLIC_API_URL is not https');
   return { errors, warnings };
 }

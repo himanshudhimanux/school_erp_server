@@ -327,7 +327,7 @@ describe('password and email flows', () => {
 
     const send = await request(app).post('/api/v1/auth/resend-verification').set(bearer(token));
     assert.equal(send.status, 200);
-    assert.equal(send.body.data.delivered, false, 'reports honestly that SMTP is not configured');
+    assert.equal(send.body.data.delivered, false, 'reports honestly that email is not configured');
     const vt = lastMailToken('verify@alpha.test');
     assert.equal((await request(app).post('/api/v1/auth/verify-email').send({ token: vt })).status, 200);
     assert.equal((await request(app).post('/api/v1/auth/verify-email').send({ token: vt })).status, 400);

@@ -29,7 +29,7 @@ router.get('/settings', requirePermission('library.read'), async (req, res) => o
 router.patch(
   '/settings',
   requirePermission('library.update'),
-  validate({ body: z.object({ loanDays: z.number().int().min(1).max(120), maxBooksStudent: z.number().int().min(1).max(20), maxBooksStaff: z.number().int().min(1).max(50), finePerDay: z.number().int().min(0).max(100000), fineCategoryId: objectId.nullable() }).partial().strict().refine((d) => Object.keys(d).length > 0, 'Provide at least one setting') }),
+  validate({ body: z.object({ loanDays: z.number().int().min(1).max(120), maxBooksStudent: z.number().int().min(1).max(20), maxBooksStaff: z.number().int().min(1).max(50), finePerDay: z.number().int().min(0).max(100000), maxFine: z.number().int().min(1).max(10_000_000).nullable(), fineCategoryId: objectId.nullable() }).partial().strict().refine((d) => Object.keys(d).length > 0, 'Provide at least one setting') }),
   async (req, res) => ok(res, await svc.updateLibrarySettings(req.tenant, req.body, auditContext(req)), { message: 'Library settings saved' }),
 );
 

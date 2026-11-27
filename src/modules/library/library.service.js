@@ -11,13 +11,13 @@ import { todayIn, addDays, daysBetween } from '../../utils/dates.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { recordAudit } from '../audit/audit.service.js';
 
-const DEFAULTS = { loanDays: 14, maxBooksStudent: 3, maxBooksStaff: 5, finePerDay: 100, fineCategoryId: null };
+const DEFAULTS = { loanDays: 14, maxBooksStudent: 3, maxBooksStaff: 5, finePerDay: 100, maxFine: null, fineCategoryId: null };
 
 export async function librarySettings(schoolId) {
   const s = await School.findById(schoolId).select('timezone settings.library').lean();
   const l = s?.settings?.library || {};
   const pick = (k) => (l[k] === undefined || l[k] === null ? DEFAULTS[k] : l[k]);
-  return { loanDays: pick('loanDays'), maxBooksStudent: pick('maxBooksStudent'), maxBooksStaff: pick('maxBooksStaff'), finePerDay: pick('finePerDay'), fineCategoryId: l.fineCategoryId ?? null, timezone: s?.timezone || 'UTC' };
+  return { loanDays: pick('loanDays'), maxBooksStudent: pick('maxBooksStudent'), maxBooksStaff: pick('maxBooksStaff'), finePerDay: pick('finePerDay'), maxFine: l.maxFine ?? null, fineCategoryId: l.fineCategoryId ?? null, timezone: s?.timezone || 'UTC' };
 }
 
 export async function updateLibrarySettings(tenant, data, ctx) {
@@ -155,7 +155,8 @@ async function getOpenIssue(tenant, id) {
 }
 
 /**
- * Returns a copy; a late return records a fine of finePerDay for each day past the due date.
+ * Returns a copy; a late return records a fine of finePerDay for each day past the due date,
+ * never more than the school's maxFine (when set).
  * `waiveFine` needs library.update, like waiving a fine later (library.issue alone cannot waive).
  */
 export async function returnBook(tenant, id, { waiveFine = false, note }, ctx) {
@@ -165,7 +166,8 @@ export async function returnBook(tenant, id, { waiveFine = false, note }, ctx) {
   const issue = await getOpenIssue(tenant, id);
   const today = todayIn(settings.timezone);
   const late = Math.max(0, daysBetween(issue.dueDate, today));
-  const fine = late * settings.finePerDay;
+  const uncapped = late * settings.finePerDay;
+  const fine = settings.maxFine ? Math.min(uncapped, settings.maxFine) : uncapped;
   const closed = await BookIssue.findOneAndUpdate(
     { _id: issue._id, schoolId, status: 'issued' },
     { status: 'returned', returnedAt: new Date(), fine, fineStatus: fine ? (waiveFine ? 'waived' : 'pending') : 'none', closedBy: ctx.actorId, ...(note ? { note } : {}) },
@@ -173,7 +175,7 @@ export async function returnBook(tenant, id, { waiveFine = false, note }, ctx) {
   );
   if (!closed) throw ApiError.conflict('This loan was just closed', { code: 'LOAN_CLOSED' });
   await Book.updateOne({ _id: issue.bookId, schoolId }, { $inc: { availableCopies: 1 } });
-  await recordAudit({ ...ctx, action: 'library.returned', entityType: 'BookIssue', entityId: issue._id, metadata: { lateDays: late, fine, waived: Boolean(waiveFine && fine) } });
+  await recordAudit({ ...ctx, action: 'library.returned', entityType: 'BookIssue', entityId: issue._id, metadata: { lateDays: late, fine, capped: fine < uncapped, waived: Boolean(waiveFine && fine) } });
   const [row] = await decorateIssues(schoolId, [closed.toObject()], today);
   return row;
 }

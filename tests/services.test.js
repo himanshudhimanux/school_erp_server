@@ -148,6 +148,24 @@ describe('library', () => {
     assert.equal((await api('post', `/library/issues/${loan.body.data._id}/waive-fine`, T.admin).send({ reason: 'Too late' })).body.error.code, 'NO_PENDING_FINE');
   });
 
+  test('fine cap: a long-overdue return is fined at most maxFine; the cap can be removed', async () => {
+    expectStatus(await api('patch', '/library/settings', T.admin).send({ maxFine: 0 }), 422);
+    const set = await api('patch', '/library/settings', T.admin).send({ maxFine: 500 });
+    expectStatus(set, 200);
+    assert.equal(set.body.data.maxFine, 500);
+    const loan = await api('post', '/library/issues', T.librarian).send({ bookId: ids.book, studentId: ids.s3 });
+    expectStatus(loan, 201);
+    await BookIssue.updateOne({ schoolId: S.a._id, _id: loan.body.data._id }, { dueDate: addDays(today, -10) }); // 10 × 200 = 2000
+    const ret = await api('post', `/library/issues/${loan.body.data._id}/return`, T.librarian).send({});
+    assert.deepEqual([ret.body.data.fine, ret.body.data.fineStatus], [500, 'pending']);
+
+    const cleared = await api('patch', '/library/settings', T.admin).send({ maxFine: null });
+    assert.equal(cleared.body.data.maxFine, null);
+    const loan2 = await api('post', '/library/issues', T.librarian).send({ bookId: ids.book, studentId: ids.s3 });
+    await BookIssue.updateOne({ schoolId: S.a._id, _id: loan2.body.data._id }, { dueDate: addDays(today, -10) });
+    assert.equal((await api('post', `/library/issues/${loan2.body.data._id}/return`, T.librarian).send({})).body.data.fine, 2000);
+  });
+
   test('parents see their child’s loans; records with loans are protected', async () => {
     await api('post', '/library/issues', T.librarian).send({ bookId: ids.book, studentId: ids.s1 });
     const mine = await api('get', '/portal/library', T.parent);

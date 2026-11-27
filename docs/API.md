@@ -630,7 +630,7 @@ Permissions:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET / PATCH | `/library/settings` | `{ loanDays (14), maxBooksStudent (3), maxBooksStaff (5), finePerDay (paise, 100), fineCategoryId }` |
+| GET / PATCH | `/library/settings` | `{ loanDays (14), maxBooksStudent (3), maxBooksStaff (5), finePerDay (paise, 100), maxFine (paise, null = no cap), fineCategoryId }`. A late return is fined `min(finePerDay × days late, maxFine)`. |
 | GET | `/library/summary` | `{ titles, copies, available, onLoan, overdue, pendingFines{ amount, count } }` |
 | GET / POST | `/library/books` | Query `search, category, available, status, page, limit`. POST `{ title, author?, isbn?, publisher?, category?, edition?, shelf?, copies }` |
 | PATCH / DELETE | `/library/books/:id` | Changing `copies` keeps copies on loan: available changes by the same amount, and the total can't drop below copies on loan (`COPIES_ON_LOAN`). Deleting needs no copies on loan (`BOOK_ON_LOAN`). |

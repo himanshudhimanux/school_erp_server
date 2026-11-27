@@ -54,6 +54,8 @@ const schoolSchema = new mongoose.Schema(
         maxBooksStudent: { type: Number, min: 1, max: 20 },
         maxBooksStaff: { type: Number, min: 1, max: 50 },
         finePerDay: { type: Number, min: 0 },
+        // Most a single late return can be fined (minor units); null = no cap.
+        maxFine: { type: Number, min: 1, default: null },
         fineCategoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'FeeCategory', default: null },
       },
       hr: {

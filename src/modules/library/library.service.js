@@ -154,9 +154,13 @@ async function getOpenIssue(tenant, id) {
   return issue;
 }
 
-/** Returns a copy; a late return records a fine of finePerDay for each day past the due date. */
+/**
+ * Returns a copy; a late return records a fine of finePerDay for each day past the due date.
+ * `waiveFine` needs library.update, like waiving a fine later (library.issue alone cannot waive).
+ */
 export async function returnBook(tenant, id, { waiveFine = false, note }, ctx) {
   const schoolId = tenant.schoolId;
+  if (waiveFine && !tenant.permissions?.has('library.update')) throw ApiError.forbidden('You do not have permission to waive library fines', { code: 'FORBIDDEN' });
   const settings = await librarySettings(schoolId);
   const issue = await getOpenIssue(tenant, id);
   const today = todayIn(settings.timezone);
@@ -195,10 +199,10 @@ async function getFineIssue(tenant, id) {
 
 export async function waiveFine(tenant, id, { reason }, ctx) {
   const issue = await getFineIssue(tenant, id);
-  issue.fineStatus = 'waived';
-  await issue.save();
+  const updated = await BookIssue.findOneAndUpdate({ _id: issue._id, schoolId: tenant.schoolId, fineStatus: 'pending' }, { fineStatus: 'waived' }, { returnDocument: 'after' }).lean();
+  if (!updated) throw ApiError.conflict('This fine was just updated', { code: 'FINE_CHANGED' });
   await recordAudit({ ...ctx, action: 'library.fine_waived', entityType: 'BookIssue', entityId: issue._id, metadata: { fine: issue.fine, reason } });
-  return issue.toObject();
+  return updated;
 }
 
 /**
@@ -212,13 +216,21 @@ export async function chargeFine(tenant, id, ctx) {
   const settings = await librarySettings(tenant.schoolId);
   if (!settings.fineCategoryId) throw ApiError.badRequest('Choose a fee category for library fines in library settings first', { code: 'FINE_CATEGORY_REQUIRED' });
   const book = await Book.findOne({ _id: issue.bookId, schoolId: tenant.schoolId }).setOptions({ withDeleted: true }).select('title').lean();
-  const invoice = await createAdhocInvoice(
-    tenant,
-    { studentId: issue.studentId, title: `Library fine: ${book?.title ?? 'book'}`, dueDate: addDays(todayIn(settings.timezone), 7), lines: [{ categoryId: settings.fineCategoryId, amount: issue.fine, description: issue.status === 'lost' ? 'Lost book' : 'Late return' }] },
-    ctx,
-  );
-  const r = await BookIssue.updateOne({ _id: issue._id, schoolId: tenant.schoolId, fineStatus: 'pending' }, { fineStatus: 'charged', fineInvoiceId: invoice._id });
-  if (!r.modifiedCount) throw ApiError.conflict('This fine was just updated', { code: 'FINE_CHANGED' });
+  // Claim the pending fine first: of two simultaneous requests only one creates an invoice.
+  const claim = await BookIssue.updateOne({ _id: issue._id, schoolId: tenant.schoolId, fineStatus: 'pending' }, { fineStatus: 'charged' });
+  if (!claim.modifiedCount) throw ApiError.conflict('This fine was just updated', { code: 'FINE_CHANGED' });
+  let invoice;
+  try {
+    invoice = await createAdhocInvoice(
+      tenant,
+      { studentId: issue.studentId, title: `Library fine: ${book?.title ?? 'book'}`, dueDate: addDays(todayIn(settings.timezone), 7), lines: [{ categoryId: settings.fineCategoryId, amount: issue.fine, description: issue.status === 'lost' ? 'Lost book' : 'Late return' }] },
+      ctx,
+    );
+  } catch (err) {
+    await BookIssue.updateOne({ _id: issue._id, schoolId: tenant.schoolId, fineStatus: 'charged', fineInvoiceId: null }, { fineStatus: 'pending' });
+    throw err;
+  }
+  await BookIssue.updateOne({ _id: issue._id, schoolId: tenant.schoolId }, { fineInvoiceId: invoice._id });
   await recordAudit({ ...ctx, action: 'library.fine_charged', entityType: 'BookIssue', entityId: issue._id, metadata: { invoiceNo: invoice.invoiceNo, fine: issue.fine } });
   return { invoiceId: invoice._id, invoiceNo: invoice.invoiceNo, amount: issue.fine };
 }

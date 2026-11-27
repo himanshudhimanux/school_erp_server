@@ -636,7 +636,7 @@ Permissions:
 | PATCH / DELETE | `/library/books/:id` | Changing `copies` keeps copies on loan: available changes by the same amount, and the total can't drop below copies on loan (`COPIES_ON_LOAN`). Deleting needs no copies on loan (`BOOK_ON_LOAN`). |
 | GET | `/library/issues` | Query `status (issued\|overdue\|returned\|lost), fineStatus, studentId, membershipId, bookId`. Rows include `book`, `borrower`, `overdueDays` and `displayStatus`. |
 | POST | `/library/issues` | `{ bookId, studentId \| membershipId, dueDate?, note? }`. The copy is reserved atomically (`NO_COPIES_AVAILABLE`). Also checks the borrower's limit (`BORROW_LIMIT`) and duplicates (`ALREADY_BORROWED`). The due date defaults to today + `loanDays`. |
-| POST | `/library/issues/:id/return` | `{ waiveFine?, note? }`. A late return records `finePerDay × days late` with `fineStatus: pending`. |
+| POST | `/library/issues/:id/return` | `{ waiveFine?, note? }`. A late return records `finePerDay × days late` with `fineStatus: pending`. `waiveFine: true` also needs `library.update` (403 otherwise). |
 | POST | `/library/issues/:id/lost` | `{ charge?, note? }`. The copy leaves the collection, and the charge becomes the fine. |
 | POST | `/library/issues/:id/waive-fine` | `{ reason }` |
 | POST | `/library/issues/:id/charge-fine` | Adds a student's pending fine to their fees as a one-off invoice, using the configured fine category. Needs the fees module (and transactions). |

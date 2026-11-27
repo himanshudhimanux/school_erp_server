@@ -115,6 +115,39 @@ describe('library', () => {
     assert.deepEqual([up.body.data.totalCopies, up.body.data.availableCopies], [5, 4]);
   });
 
+  test('fines: waiving on return needs library.update; adding to fees bills exactly once', async () => {
+    const { supportsTransactions } = await import('../src/config/db.js');
+    // A late loan for Sita (s2), returned by the librarian.
+    const loan = await api('post', '/library/issues', T.librarian).send({ bookId: ids.book, studentId: ids.s2 });
+    expectStatus(loan, 201);
+    await BookIssue.updateOne({ schoolId: S.a._id, _id: loan.body.data._id }, { dueDate: addDays(today, -2) });
+    const denied = await api('post', `/library/issues/${loan.body.data._id}/return`, T.librarian).send({ waiveFine: true });
+    expectStatus(denied, 403); // the librarian may return books but not waive fines
+    const ret = await api('post', `/library/issues/${loan.body.data._id}/return`, T.librarian).send({});
+    assert.deepEqual([ret.body.data.fine, ret.body.data.fineStatus], [400, 'pending']);
+
+    const cat = await api('post', '/fees/categories', T.admin).send({ name: 'Library fine', code: 'LIBFINE' });
+    expectStatus(cat, 201);
+    expectStatus(await api('patch', '/library/settings', T.admin).send({ fineCategoryId: cat.body.data._id }), 200);
+    const charge = () => api('post', `/library/issues/${loan.body.data._id}/charge-fine`, T.admin);
+
+    if (!supportsTransactions()) {
+      // Invoices need transactions: the failed attempt must leave the fine pending, not "charged".
+      expectStatus(await charge(), 503);
+      assert.equal((await BookIssue.findOne({ schoolId: S.a._id, _id: loan.body.data._id }).lean()).fineStatus, 'pending');
+      return;
+    }
+    const results = await Promise.all([charge(), charge()]);
+    assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+    const { FeeInvoice } = await import('../src/modules/fees/fee.models.js');
+    assert.equal(await FeeInvoice.countDocuments({ schoolId: S.a._id, studentId: ids.s2, title: /^Library fine/ }), 1, 'one invoice, not two');
+    const issue = await BookIssue.findOne({ schoolId: S.a._id, _id: loan.body.data._id }).lean();
+    assert.equal(issue.fineStatus, 'charged');
+    assert.ok(issue.fineInvoiceId);
+    // A charged fine can no longer be waived.
+    assert.equal((await api('post', `/library/issues/${loan.body.data._id}/waive-fine`, T.admin).send({ reason: 'Too late' })).body.error.code, 'NO_PENDING_FINE');
+  });
+
   test('parents see their child’s loans; records with loans are protected', async () => {
     await api('post', '/library/issues', T.librarian).send({ bookId: ids.book, studentId: ids.s1 });
     const mine = await api('get', '/portal/library', T.parent);
